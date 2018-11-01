@@ -53,7 +53,9 @@ updates.use(async (context, next) => {
 		});
 })();
 
-require("./qore")(vk, Keyboard);
+const q = require("./qore");
+module.exports.q = q;
+q(vk, Keyboard);
 
 async function run() {
 	await vk.updates.startPolling();
