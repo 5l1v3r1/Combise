@@ -42,7 +42,7 @@ function getCmd(menuID) {
 
 
 
-const izCap = require("../../utils/izCap"),
+const izCap = require("../../src/utils/izCap"),
 	izCapData = new izCap("./data/combise", false, _);
 
 izCapData.addLoad(_=> {
