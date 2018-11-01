@@ -191,7 +191,7 @@ function getMenu(context, one, menuID) {
 
 
 async function setMenu(context, menuID, send, one, photo) {
-	send = send!==undefined ? send : "...";
+	send = send!==undefined ? send : "!..";
 	const { session } = context.state,
 		{ player } = session;
 	if(menuID !== false)
@@ -344,8 +344,17 @@ function start(_VK, _Keyboard) {
 	.on('message', async (context, next) => {
 		const { session } = context.state;
 
-		if(context) {
-			console.log(context);
+		if(context.is("audio_message") /* ||context.hasAttachments("audio_message") */ ) {
+			const attachment = context.getAttachments("audio_message")[0];
+
+			var mid = await context.send({
+				attachment: attachment.toString()
+			});
+
+			console.log("Send msg id: ", mid);
+
+			// ..
+			return;
 		}
 
 		await fQuest(context, next);
@@ -410,13 +419,14 @@ function start(_VK, _Keyboard) {
 		// Quest.State = cc;
 
 		var msg = "";
-		if(cc == QQuest.Start || menuState == getCmd(MMenu.QuestStart)) {
+		if(Quest.State == QQuest.Start && menuState == getCmd(MMenu.QuestStart)) {
 
 			msg = "Приступим... Запиши голосовое сообщение с текстом: "+getTestText();
 
 			Quest.State = QQuest.Record;
 
-			await setMenu(context, MMenu.ATask, msg, true);
+			var mid = await setMenu(context, MMenu.ATask, msg, true);
+			console.log("qt send msg id:", mid );
 		}
 
 
@@ -439,13 +449,9 @@ async function fQuest(context, next) {
 	}
 
 	if(Quest.State = QQuest.FirstStart && menuState == MMenu.None) {
-		sWait(context, 30);
+		sWait(context, 20);
 		Quest.State = QQuest.Start;
 
-		await _.sleep(2);
-		await context.setActivity();
-
-		await _.sleep(3);
 		await botSay("Псс... Человек, помоги мне!");
 		await context.setActivity();
 
