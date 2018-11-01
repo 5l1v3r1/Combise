@@ -1,13 +1,13 @@
 
 class Player {
 
-	constructor({ peerId, balance=0, cmts=false } = {}) {
+	constructor({ peerId, balance=0, cmts=false, currentTask={} } = {}) {
 		this.peerId = peerId;
 
 		this.balance = balance || 0;
 
 		// отгаданные слова
-		this.guessedWords = guessedWords || {};
+		this.currentTask = currentTask || {};
 
 
 		// countMessageToSpam
