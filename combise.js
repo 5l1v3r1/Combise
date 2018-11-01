@@ -16,7 +16,6 @@ function tryStart() {
 
 function start() {
 	_.con(xbot.name+" start");
-	
 	run().catch(console.error);
 }
 
@@ -30,7 +29,7 @@ vk.setOptions({
 
 // Skip outbox message and handle errors
 updates.use(async (context, next) => {
-	
+
 	if (context.is('message') && context.isOutbox) {
 		return;
 	}
