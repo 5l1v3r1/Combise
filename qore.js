@@ -301,7 +301,8 @@ function start(_VK, _Keyboard) {
 	})
 	// Set default session
 	.on('message', async (context, next) => {
-		const { session } = context.state;
+		const { peerId, state } = context;
+		const { session } = state;
 
 		if (!('inWait' in session))
 			session.inWait = false;
