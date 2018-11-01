@@ -1,7 +1,7 @@
 
 class Player {
 
-	constructor({ peerId, balance=0, cmts=false, currentTask={} } = {}) {
+	constructor({ peerId, balance=0, cmts=false, currentTask={}, settings=false } = {}) {
 		this.peerId = peerId;
 
 		this.balance = balance || 0;
