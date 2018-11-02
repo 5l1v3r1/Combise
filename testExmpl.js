@@ -1,26 +1,5 @@
 
-const MMenu = global.MMenu = {
-	Close: new CMenu(-1, "Close"),
-	None: new CMenu(0, "None"),
-	Start: new CMenu(1, "Start", [ "start", "старт" ]),
-	Restart: new CMenu(2, "Restart", [ "restart", "reset", "рестарт" ]),
-	Help: new CMenu(3, "Help", [ "help", "помощь" ]),
 
-	Menu: new CMenu(4, "Menu", [ "menu", "меню" ]),
-	Settings: new CMenu(5, "Settings", [ "settings", "настройки" ]),
-
-	QuestStart: new CMenu(6, "QuestStart", [ "to help", "помочь" ]),
-	ATask: new CMenu(7, "ATask", [ "" ]),
-	GetBalance: new CMenu(7, "ATask", [ "" ]),
-};
-
-function getCmd(menu) {
-	return menu._cmd;
-}
-
-function itsMenu(menu, str) {
-    return menu.isHere(str);
-}
 class CMenu {
 
     constructor(id, name, regex) {
@@ -41,6 +20,10 @@ class CMenu {
         //     this._regex = new RegExp("^("+regex+")$", "i");
     }
 
+    get cmd() {
+        return this._cmd;
+    }
+
     get name() {
         return this._name;
     }
@@ -49,4 +32,57 @@ class CMenu {
         return this._regex? this._regex.test(str): false;
     }
 
+}
+
+
+
+const MMenu = global.MMenu = {
+	Close: new CMenu(-1, "Close"),
+	None: new CMenu(0, "None"),
+	Start: new CMenu(1, "Start", [ "start", "старт" ]),
+	Restart: new CMenu(2, "Restart", [ "restart", "reset", "рестарт" ]),
+	Help: new CMenu(3, "Help", [ "help", "помощь" ]),
+
+	Menu: new CMenu(4, "Menu", [ "menu", "меню" ]),
+	Settings: new CMenu(5, "Settings", [ "settings", "настройки" ]),
+
+	QuestStart: new CMenu(6, "QuestStart", [ "to help", "помочь" ]),
+	ATask: new CMenu(7, "ATask", [ "" ]),
+	GetBalance: new CMenu(8, "GetBalance", [ "баланс", "balance" ]),
+};
+
+
+
+const hearCMenu = (menu, /* conditions, */ handle) => {
+
+	// if (typeof conditions == 'function') {
+	// 	handle = conditions;
+	// 	conditions = [ /* menu.name */ ];
+	// }
+
+	// if (!Array.isArray(conditions)) {
+	// 	conditions = [ conditions ];
+	// }
+
+	updates.hear(
+		[
+			(text, { state }) => ( state.command === menu.cmd ),
+			(text, { state }) => menu.isHere(text),
+			// ...conditions
+		],
+		handle
+	);
+};
+
+
+// hearCMenu(MMenu.Start, async (context, next)=> {
+//     //
+// });
+
+function getCmd(menu) {
+	return menu._cmd;
+}
+
+function itsMenu(menu, str) {
+    return menu.isHere(str);
 }

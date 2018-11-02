@@ -2,7 +2,7 @@ var vk, Keyboard,
 	updates,
 	memoryStorage;
 
-const QQuest = global.QQuest = {
+const QQuest = {
 	None: 0,
 	FirstStart: 1,
 	Start: 2,
@@ -10,37 +10,53 @@ const QQuest = global.QQuest = {
 	Record: 3,	// Должен записать голосовое
 	Listen: 4,	// Должен прослушать и проверить голосовое
 };
-const MMenu = global.MMenu = {
-	Close: -1,
-	None: 0,
-	Start: 1,
-	Restart: 2,
-	Help: 3,
 
-	Menu: 4,
-	Settings: 5,
+class CMenu {
 
-	QuestStart: 6,
-	ATask: 7,
-	GetBalance: 7,
+    constructor(id, name, regex) {
+        this._id = id;
+        this._name = name;
+        this._cmd = "!cmd_"+name.toLocaleLowerCase();
 
-};
-function getCmd(menuID) {
-	var MMenuCMD = {
-		[MMenu.Start]: "start",
-		[MMenu.Restart]: "restart",
-		[MMenu.Help]: "help",
+        // if(regex === undefined)
+        regex = regex || name.toLocaleLowerCase() || false;
 
-		[MMenu.Menu]: "mm_menu",
-		[MMenu.Settings]: "settings",
+        this._regex = (!regex || (Array.isArray(regex) && regex.length==0))? false: (regex instanceof RegExp)? regex: new RegExp("^("+( (Array.isArray(regex) && regex.length>0)? regex.join("|"): regex )+")$", "i")
+    }
 
-		[MMenu.QuestStart]: "mm_quest_start",
-		[MMenu.ATask]: "mm_a_task",
-		[MMenu.GetBalance]: "mm_balance",
-	};
+    get cmd() {
+        return this._cmd;
+    }
 
-	return MMenuCMD[menuID];
+    get name() {
+        return this._name;
+    }
+
+    isHere(str) {
+        return this._regex? this._regex.test(str): false;
+    }
+
 }
+const MMenu = global.MMenu = {
+	Close: new CMenu(-1, "Close"),
+	None: new CMenu(0, "None"),
+	Start: new CMenu(1, "Start", [ "start", "старт", "начать" ]),
+	Restart: new CMenu(2, "Restart", [ "restart", "reset", "рестарт" ]),
+	Help: new CMenu(3, "Help", [ "help", "помощь" ]),
+	MainMenu: new CMenu(4, "MainMenu", [ "главное меню", "main menu", "menu", "меню" ]),
+
+	Settings: new CMenu(5, "Settings", [ "settings", "настройки", "параметры" ]),
+
+	QuestStart: new CMenu(6, "QuestStart", [ "to help", "помочь" ]),
+	QuestATrue: new CMenu(9, "QuestATrue", [ "true", "верно" ]),
+	QuestAFalse: new CMenu(10, "QuestAFalse", [ "false", "неверно" ]),
+	ATask: new CMenu(7, "ATask"),
+	GetBalance: new CMenu(8, "GetBalance", [ "баланс", "balance" ]),
+	QuestMore: new CMenu(11, "QuestMore", [ "еще", "еще!" ]),
+};
+// const itsMenu = (menu, str) => menu.isHere(str);
+const cmdMenu = (menu) => menu.cmd;
+
 
 var audioLibrary = [];
 
@@ -66,66 +82,55 @@ const limitPerHours = [ 99, 95, 75, 70 ];
 module.exports = start;
 module.exports.izCap = izCap;
 
-const hearCommand = (name, conditions, handle) => {
-	if (typeof handle !== 'function') {
-		handle = conditions;
-		conditions = [`/${name}`];
-	}
-
-	if (!Array.isArray(conditions)) {
-		conditions = [conditions];
-	}
-
+const hearCMenu = (menu, handle) => {
 	updates.hear(
 		[
-			(text, { state }) => (
-				state.command === name
-			),
-			...conditions
+			(text, { state }) => ( state.command === menu.cmd ),
+			(text) => menu.isHere(text),
 		],
 		handle
 	);
 };
 
 function menuConstruct(menuID, one, context) {
-	if(menuID == MMenu.None)
+	if(menuID == cmdMenu(MMenu.None))
 		return undefined;
 
-	if(menuID == MMenu.Close) {
+	if(menuID == cmdMenu(MMenu.Close)) {
 		var KB = Keyboard.keyboard([]);
 		KB.oneTime = true;
 		return KB;
 	}
 
 	const { session } = context.state,
-		{ gameID, player, Quest } = session,
+		{ player, Quest } = session,
 		{ peerId } = context;
 
-	menuID = menuID || MMenu.Main;
+	menuID = menuID || cmdMenu(MMenu.MainMenu);
 	one = one || false;
 
 	var menuArr = [];
 
-	if(menuID == MMenu.Start) {
+	if(menuID == cmdMenu(MMenu.Start)) {
 
 	}
-	else if(menuID == MMenu.QuestStart) {
-		if(Quest == QQuest.FirstStart)
+	else if(menuID == cmdMenu(MMenu.QuestStart)) {
+		if(Quest == QQuest.Start)
 			menuArr.push(Keyboard.textButton({
 				label: 'Помочь',
 				payload: {
-					command: getCmd(MMenu.QuestStart),
+					command: cmdMenu(MMenu.QuestStart),
 					// command2: QQuest.Start
 				},
 				color: Keyboard.PRIMARY_COLOR
 			}));
 	}
-	else if(menuID == MMenu.ATask) {
+	else if(menuID == cmdMenu(MMenu.ATask)) {
 		if(Quest == QQuest.Record)
 			menuArr.push(Keyboard.textButton({
 				label: "Не могу выговорить",
 				payload: {
-					// command: getCmd(MMenu.ATask),
+					// command: cmdMenu(MMenu.ATask),
 				},
 				color: Keyboard.DEFAULT_COLOR
 			}));
@@ -133,35 +138,51 @@ function menuConstruct(menuID, one, context) {
 			menuArr.push(Keyboard.textButton({
 				label: "Верно",
 				payload: {
-					// command: getCmd(MMenu.ATask),
+					// command: cmdMenu(MMenu.ATask),
 				},
 				color: Keyboard.DEFAULT_COLOR
 			}),
 			Keyboard.textButton({
 				label: "Неверно",
 				payload: {
-					// command: getCmd(MMenu.ATask),
+					// command: cmdMenu(MMenu.ATask),
 				},
 				color: Keyboard.DEFAULT_COLOR
 			}));
 		}
 	}
-	else if(menuID == MMenu.Main) {
+	else if(menuID == cmdMenu(MMenu.QuestMore)) {
 		menuArr.push(Keyboard.textButton({
-			label: 'Settings ⚙',
+			label: 'Еще!',
 			payload: {
-				command: getCmd(MMenu.Settings)
+				command: cmdMenu(MMenu.QuestMore)
 			},
 			color: Keyboard.PRIMARY_COLOR
 		}));
 	}
-	else if(menuID == MMenu.Settings) {
+	else if(menuID == cmdMenu(MMenu.MainMenu)) {
+		menuArr.push(Keyboard.textButton({
+			label: 'Settings ⚙',
+			payload: {
+				command: cmdMenu(MMenu.Settings)
+			},
+			color: Keyboard.PRIMARY_COLOR
+		}));
+		menuArr.push(Keyboard.textButton({
+			label: 'Задания 🌿',
+			payload: {
+				command: cmdMenu(MMenu.QuestMore)
+			},
+			color: Keyboard.POSITIVE_COLOR
+		}));
+	}
+	else if(menuID == cmdMenu(MMenu.Settings)) {
 		const { notif, cmts } = player.settings;
 
 		menuArr.push(Keyboard.textButton({
 			label: 'Уведомления 🔔 [O'+(notif? "N": "FF")+']',
 			payload: {
-				command: getCmd(MMenu.Settings),
+				command: cmdMenu(MMenu.Settings),
 				command2: 1
 			},
 			color: Keyboard[notif? "POSITIVE_COLOR": "NEGATIVE_COLOR"]
@@ -169,29 +190,29 @@ function menuConstruct(menuID, one, context) {
 		menuArr.push(Keyboard.textButton({
 			label: 'Счетчик 💁 [O'+(cmts? "N": "FF")+']',
 			payload: {
-				command: getCmd(MMenu.Settings),
+				command: cmdMenu(MMenu.Settings),
 				command2: 2
 			},
 			color: Keyboard[cmts? "POSITIVE_COLOR": "NEGATIVE_COLOR"]
 		}));
 	}
 
-	if([ MMenu.Settings ].includes(menuID)) {
+	if([ cmdMenu(MMenu.Settings) ].includes(menuID)) {
 		menuArr.push(Keyboard.textButton({
 			label: 'Main menu',
 			payload: {
-				command: getCmd(MMenu.Main)
+				command: cmdMenu(MMenu.MainMenu)
 			},
 			color: Keyboard.DEFAULT_COLOR
 		}));
 	}
 
-	if([ MMenu.ATask/* , MMenu.QuestStart */ ].includes(menuID)) {
+	if([ cmdMenu(MMenu.ATask), cmdMenu(MMenu.QuestMore), cmdMenu(MMenu.MainMenu) ].includes(menuID)) {
 		menuArr.push(Keyboard.textButton({
 			label: 'Баланс',
-			/* payload: {
-				command: getCmd(MMenu.Main)
-			}, */
+			payload: {
+				command: cmdMenu(MMenu.GetBalance)
+			},
 			color: Keyboard.DEFAULT_COLOR
 		}));
 	}
@@ -206,16 +227,24 @@ function menuConstruct(menuID, one, context) {
 function getMenu(context, one, menuID) {
 	const { session } = context.state;
 
-	return menuConstruct(menuID || session.menuState || MMenu.None, one, context);
+	return menuConstruct(menuID || session.menuState || cmdMenu(MMenu.None), one, context);
 }
 
+function addPlayerBalance(peerId, count) {
+	const session = memoryStorage.has(peerId) ? memoryStorage.get(peerId) : false;
+	if (session && 'player' in session) {
+		session.player.balance += count;
+	}
 
-async function setMenu(context, menuID, send, one, photo) {
+	return (session && 'player' in session);
+}
+
+async function setMenu(context, menu, send, one, photo) {
 	send = send!==undefined ? send : "!..";
 	const { session } = context.state,
 		{ player } = session;
-	if(menuID !== false)
-		session.menuState = menuID;
+	if(menu !== false)
+		session.menuState = cmdMenu(menu);
 
 	// Как же ВК считает эти кулдауны для сообществ? 🤔
 	// Удалить смс старше 12 минут
@@ -268,7 +297,7 @@ async function setMenu(context, menuID, send, one, photo) {
 				_cdpw.add(()=> {
 					sWait(context, false);
 					context.setActivity();
-					setMenu(context, menuID, send, one, photo);
+					setMenu(context, menu, send, one, photo);
 				}, 60*minuteRetry);
 			}
 			// Code №121 - Invalid hash
@@ -276,7 +305,7 @@ async function setMenu(context, menuID, send, one, photo) {
 				console.log("Invalid hash. Photo? Try now...");
 				if(photo)
 					// Попытка повторно отправить сообщение без фото
-					setMenu(context, menuID, send, one, false);
+					setMenu(context, menu, send, one, false);
 			}
 			else
 				console.error(e);
@@ -309,7 +338,7 @@ function start(_VK, _Keyboard) {
 		await next();
 	})
 	// Init memoryStore player
-	.on('message', async (context, next) => {
+	.use(async (context, next) => {
 		const { peerId } = context;
 
 		const session = memoryStorage.has(peerId) ? memoryStorage.get(peerId) : {};
@@ -320,22 +349,21 @@ function start(_VK, _Keyboard) {
 		await next();
 	})
 	// Set default session
-	.on('message', async (context, next) => {
+	.use(async (context, next) => {
 		const { peerId, state } = context;
 		const { session } = state;
 
 		if (!('inWait' in session))
 			session.inWait = false;
 
-
 		// If the first launch of the application then Quest -> FirstStart & Menu -> None
 		if (!('menuState' in session))
-			session.menuState = MMenu.None;
+			session.menuState = cmdMenu(MMenu.None);
 		if (!('Quest' in session))
 			session.Quest = QQuest.FirstStart;
 
-		if (!('gameID' in session))
-			session.gameID = -1;
+		if (!('aTask' in session))
+			session.aTask = { id: 0, peerId: 0 };
 
 		if (!('player' in session)) {
 			session.player = new Player({ peerId });
@@ -349,7 +377,7 @@ function start(_VK, _Keyboard) {
 	})
 
 	// Check cool down
-	.on('message', async (context, next) => {
+	.use(async (context, next) => {
 		const { session } = context.state;
 
 		if(session.inWait && (_.nowUNIX() - session.inWait) < 0 ) {
@@ -360,51 +388,52 @@ function start(_VK, _Keyboard) {
 		await next();
 	})
 
-	// Check Quest
-	.on('message', async (context, next) => {
+	.on(['audio_message'], async (context, next) => {
 		const { session } = context.state,
 			{ peerId, id } = context;
-		var { gameID, player } = session;
+		var { aTask, player } = session;
 
-		if(context.is("audio_message") /* ||context.hasAttachments("audio_message") */ ) {
-			const attachment = context.getAttachments("audio_message")[0];
-			if(attachment.duration > 60*2)
-				await context.send("Слишком долго...");
+		const attachment = context.getAttachments("audio_message")[0];
 
-			var auNew = audioLibrary.push(new AudioLib({ id, peerId, url: attachment.url }));
+		if(attachment.duration > 60*2)
+			return await context.send("Слишком долго...");
 
-			// var mid = await context.send({
-			// 	attachment: `doc${attachment.ownerId}_${attachment.id}`
-			// });
+		var text = aTask.text || false,
+			auNew = audioLibrary.push(new AudioLib({ id, peerId, url: attachment.url, text }));
 
-			var mid = await context.send("Отлично. Потом проверим. Сейчас найдем еще...");
-			// console.log(audioLibrary[auNew-1]);
-			console.log("Send text from audio msg id: ", mid);
+		setMenu(context, MMenu.Close, "Отлично. Потом проверим. Сейчас найдем еще...");
+		// var mid = await context.send("Отлично. Потом проверим. Сейчас найдем еще...");
+		// console.log("From ["+peerId+"] sended text from audio msg id: ", mid);
 
-			var tryGet = audioLibGetRand(peerId)
-			if(tryGet) {
-				session.menuState = MMenu.ATask;
-				session.Quest = QQuest.Listen;
+		sWait(context, 10);
 
-				var tgg = audioLibrary.find(c => c.id == tryGet.id);
-				tgg.setStatus(1);
-				gameID = tgg.peerId;
+		var gAudio = audioLibrary.find(au=> au.peerId != peerId && au.status==AudioLib.Status.New);
 
-				await context.sendAudioMessage(tryGet.url, {
-					keyboard: getMenu(context, true)
-				});
+		if(gAudio) {
+			// session.menuState = cmdMenu(MMenu.ATask);
+			session.Quest = QQuest.Listen;
 
-				// audioLibRemove(tryGet.id);
-			}
-			else
-				await context.send("Другие голосовухи закончились");
+			gAudio.setStatus(AudioLib.Status.Wait);
+			aTask = { id: gAudio.id, peerId: gAudio.peerId, text: gAudio.text };
 
+			// await context.send(gAudio.text? ("Здесь произнесен такой текст: \""+ gAudio.text +"\"?"): "Здесь явно что-то сказано...");
+			await setMenu(context, MMenu.ATask, gAudio.text? ("Здесь произнесен такой текст: \""+ gAudio.text +"\"?"): "Здесь явно что-то сказано...");
+			await context.sendAudioMessage(gAudio.url, {
+				keyboard: getMenu(context, true)
+			});
 
-			izCapData.set("audioLibrary", audioLibrary);
-
-			// ..
-			return;
+			// audioLibRemove(gAudio.id);
 		}
+		else
+			await setMenu(context, MMenu.MainMenu, "Другие голосовухи закончились.\nМожет можно записать еще или просто подождать других");
+
+		sWait(context, false);
+
+		izCapData.set("audioLibrary", audioLibrary);
+
+	})
+	// Check Quest
+	.on('message', async (context, next) => {
 
 		await fQuest(context, next);
 
@@ -412,25 +441,25 @@ function start(_VK, _Keyboard) {
 	});
 
 
-	hearCommand(getCmd(MMenu.Start), [ /^(старт|начать|start)$/i ], async (context, next) => {
+	hearCMenu(MMenu.Start, async (context, next) => {
 		// a
 		await next();
 	});
-	hearCommand(getCmd(MMenu.Main), async (context) => {
-		await setMenu(context, MMenu.Main, "Back to Main menu", true);
-	});
-
-	hearCommand(getCmd(MMenu.Restart), [ /^(рестарт|reset|restart)$/i ], async (context) => {
+	hearCMenu(MMenu.Restart, async (context) => {
 		const { peerId } = context;
-		await setMenu(context, MMenu.Main, "Restart menu", true);
+
+		await setMenu(context, MMenu.MainMenu, "Restart menu", true);
 	});
-	hearCommand(getCmd(MMenu.Settings), [ /(настройки|параметры|settings)/i ], async (context) => {
+	hearCMenu(MMenu.MainMenu, async (context) => {
+		await setMenu(context, MMenu.MainMenu, "Back to Main menu", true);
+	});
+	hearCMenu(MMenu.Settings, async (context) => {
 		const { session, command2 } = context.state;
 		var cc = command2,
 			{ player } = session,
 			{ settings } = player;
 
-		if(cc == undefined && cc !== 0)
+		if(cc === undefined)
 			return await setMenu(context, MMenu.Settings, "Настройки");
 
 		var msg = false;
@@ -448,50 +477,37 @@ function start(_VK, _Keyboard) {
 			await setMenu(context, MMenu.Settings, msg);
 	});
 
-	hearCommand(getCmd(MMenu.Help), async (context) => {
-
+	hearCMenu(MMenu.Help, async (context) => {
 		await context.send({
 			message: "Help info text",
 			keyboard: getMenu(context)
 		});
 	});
 
-	hearCommand(getCmd(MMenu.GetBalance), [ /(баланс|balance)/i ], async (context) => {
-		const { session } = context.state;
-		
+	hearCMenu(MMenu.GetBalance, async (context) => {
+		const { session } = context.state,
+			{ balance } = session.player;
+
+		const declOfNum = (titles, n) => titles[(n % 10 === 1 && n % 100 !== 11) ? 0 : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 1 : 2];
+
 		await context.send({
-			message: "Balance: "+session.player.balance,
+			message: "Твой баланс "+balance+" "+declOfNum([ "балл", "балла", "баллов" ], balance)+".",
+			// message: "Твой баланс "+balance+" "+declOfNum([ "очко", "очка", "очков" ], balance)+".",
 			keyboard: getMenu(context, true)
 		});
 	});
 
-
-
-	hearCommand(getCmd(MMenu.QuestStart), [ /(помочь|to help)/i ], async (context) => {
+	hearCMenu(MMenu.QuestStart, async (context) => {
 		const { session, command2: cc } = context.state,
 			{ Quest, menuState } = session;
 
 		var msg = "";
-		if(Quest == QQuest.Start && menuState == MMenu.QuestStart) {
+		if(Quest == QQuest.Start && menuState == cmdMenu(MMenu.QuestStart)) {
 
-			msg = "Приступим... Запиши голосовое сообщение с текстом: "+getTestText();
+			var text = getTestText(),
+				msg = "Приступим...\nЗапиши голосовое сообщение с текстом: "+text;
 
-			session.Quest = QQuest.Record;
-
-			await setMenu(context, MMenu.ATask, msg, true);
-		}
-
-
-	});
-
-	hearCommand("Верно", [ /(верно|true)/i ], async (context) => {
-		const { session, command2: cc } = context.state,
-			{ Quest, menuState } = session;
-
-		var msg = "";
-		if(Quest == QQuest.Listen && menuState == MMenu.ATask) {
-
-			msg = "Запиши голосовое сообщение с текстом: "+getTestText();
+			session.aTask = { text };
 
 			session.Quest = QQuest.Record;
 
@@ -499,26 +515,100 @@ function start(_VK, _Keyboard) {
 		}
 	});
 
-	hearCommand("Неверно", [ /(неверно|false)/i ], async (context) => {
-		const { session, command2: cc } = context.state,
+	hearCMenu(MMenu.QuestMore, async (context) => {
+		const { session } = context.state,
 			{ Quest, menuState } = session;
 
-		var msg = "";
-		if(Quest == QQuest.Listen && menuState == MMenu.ATask) {
+		if(Quest == QQuest.None && menuState == cmdMenu(MMenu.QuestMore)) {
 
-			msg = "Тогда перезапиши голосове: "+getTestText();
+			var text = getTestText(),
+				msg = "Приступим...\nЗапиши голосовое сообщение с текстом: "+text;
+
+			session.aTask = { text };
 
 			session.Quest = QQuest.Record;
 
 			await setMenu(context, MMenu.ATask, msg, true);
+		}
+		else {
+			session.Quest = QQuest.None;
+			await setMenu(context, MMenu.QuestMore, "Если готов, то жми \"Еще!\"", true);
+		}
+	});
+
+	hearCMenu(MMenu.QuestATrue, async (context) => {
+		const { session, command2: cc } = context.state,
+			{ aTask, Quest, menuState } = session;
+
+		var msg = "";
+		if(Quest == QQuest.Listen
+			&& menuState == cmdMenu(MMenu.ATask)
+			&& aTask.id) {
+
+			var gAudio = audioLibrary.find(au=> au.peerId == aTask.peerId && au.id==aTask.id);
+			if(!gAudio) {
+				// Такое голосовое не найдено
+				console.log("This voiceMessage is not found. Params: ", aTask)
+			}
+			else if(gAudio.status == AudioLib.Status.Wait) {
+
+				gAudio.setStatus(AudioLib.Status.Done);
+
+				addPlayerBalance(aTask.peerId, 1);
+
+				session.aTask = { id: 0 };
+
+				msg = "Отлично!\nЕсли готов еще, то жми \"Еще!\"";
+				session.Quest = QQuest.None;
+				await setMenu(context, MMenu.QuestMore, msg, true);
+
+			}
+			else {
+				// Уже проверенно
+			}
+		}
+	});
+
+	hearCMenu(MMenu.QuestAFalse, async (context) => {
+		const { session, command2: cc } = context.state,
+			{ aTask, Quest, menuState } = session;
+
+		var msg = "";
+		if(Quest == QQuest.Listen
+			&& menuState == cmdMenu(MMenu.ATask)
+			&& aTask.id) {
+
+			var gAudio = audioLibrary.find(au=> au.peerId == aTask.peerId && au.id==aTask.id);
+			if(!gAudio) {
+				// Такое голосовое не найдено
+				console.log("This voiceMessage is not found. Params: ", aTask)
+			}
+			else if(gAudio.status == AudioLib.Status.Wait) {
+				session.aTask = { id: 0 };
+
+				gAudio.setStatus(AudioLib.Status.False);
+
+				msg = "Жаль.\nЕсли готов еще, то жми \"Еще!\"";
+				session.Quest = QQuest.None;
+				await setMenu(context, MMenu.QuestMore, msg, true);
+
+				// msg = "Тогда перезапиши голосове: "+getTestText();
+				// session.Quest = QQuest.Record;
+				// await setMenu(context, MMenu.ATask, msg, true);
+			}
+			else {
+				// Уже проверенно
+			}
 		}
 	});
 }
 
 
 function getTestText() {
-
-	return [ "Проверка голосового восприятия" ][0];
+	const texts = [
+		"Проверка голосового восприятия"
+	];
+	return texts[_.rand(texts.length-1)];
 }
 
 async function fQuest(context, next) {
@@ -527,10 +617,10 @@ async function fQuest(context, next) {
 
 	async function botSay(message) {
 		const prefix = "";
-		await context.send(prefix+message, { keyboard: getMenu(context, true, MMenu.None) });
+		await context.send(prefix+message, { keyboard: getMenu(context, true, cmdMenu(MMenu.None)) });
 	}
 
-	if(Quest == QQuest.FirstStart && menuState == MMenu.None) {
+	if(Quest == QQuest.FirstStart && menuState == cmdMenu(MMenu.None)) {
 		sWait(context, 20);
 		session.Quest = QQuest.Start;
 
@@ -562,7 +652,7 @@ function audioLibGetRand(peerId) {
 	var newArray = [];
 
 	for(var audio of audioLibrary) {
-		if(audio.peerId !== peerId && audio.done==0)
+		if(audio.peerId !== peerId && audio.status==AudioLib.Status.New)
 			newArray.push(audio);
 	}
 	if(newArray.length == 0)
@@ -575,15 +665,27 @@ function audioLibRemove(id) {
 
 class AudioLib {
 
-	constructor({ id=0, peerId=0, url=false, done=0 }) {
+	static get Status() {
+		return {
+			New: 0,
+			Wait: 1,
+			Done: 2,
+			False: 3,
+			Fail: 4,
+		}
+	};
+
+	constructor({ id=0, peerId=0, url=false, status=AudioLib.Status.New, text=false, textId=false }) {
 		this.id = id;
 		this.peerId = peerId;
 		this.url = url;
-		this.done = done;
+		this.status = status;
+		this.text = text;
+		this.textId = textId;
 	}
 
 	setStatus(val) {
-		this.done = val;
+		this.status = val;
 	}
 
 }
