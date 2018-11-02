@@ -107,7 +107,7 @@ function menuConstruct(menuID, one, context) {
 
 	}
 	else if(menuID == MMenu.QuestStart) {
-		if(Quest.State == QQuest.FirstStart)
+		if(Quest == QQuest.FirstStart)
 			menuArr.push(Keyboard.textButton({
 				label: 'Помочь',
 				payload: {
@@ -312,7 +312,7 @@ function start(_VK, _Keyboard) {
 		if (!('menuState' in session))
 			session.menuState = MMenu.None;
 		if (!('Quest' in session))
-			session.Quest = { State: QQuest.FirstStart, data: {  } };
+			session.Quest = QQuest.FirstStart;
 
 		if (!('gameID' in session))
 			session.gameID = -1;
@@ -413,14 +413,14 @@ function start(_VK, _Keyboard) {
 		const { session, command2: cc } = context.state,
 			{ Quest, menuState } = session;
 
-		console.log("QS: ", { Quest, menuState });
+		console.log("QS 2: ", { Quest, menuState });
 
 		var msg = "";
-		if(Quest.State == QQuest.Start && menuState == getCmd(MMenu.QuestStart)) {
+		if(Quest == QQuest.Start && menuState == getCmd(MMenu.QuestStart)) {
 
 			msg = "Приступим... Запиши голосовое сообщение с текстом: "+getTestText();
 
-			Quest.State = QQuest.Record;
+			session.Quest = QQuest.Record;
 
 			var mid = await setMenu(context, MMenu.ATask, msg, true);
 			console.log("qt send msg id:", mid );
@@ -440,14 +440,16 @@ async function fQuest(context, next) {
 	const { session } = context.state,
 		{ Quest, menuState } = session;
 
+	console.log("QS 1: ", { Quest, menuState });
+
 	async function botSay(message) {
 		const prefix = "";
 		await context.send(prefix+message, { keyboard: getMenu(context, true, MMenu.None) });
 	}
 
-	if(Quest.State = QQuest.FirstStart && menuState == MMenu.None) {
+	if(Quest = QQuest.FirstStart && menuState == MMenu.None) {
 		sWait(context, 20);
-		session.Quest.State = QQuest.Start;
+		session.Quest = QQuest.Start;
 
 		await botSay("Псс... Человек, помоги мне!");
 		await context.setActivity();
