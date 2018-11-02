@@ -22,6 +22,7 @@ const MMenu = global.MMenu = {
 
 	QuestStart: 6,
 	ATask: 7,
+	GetBalance: 7,
 
 };
 function getCmd(menuID) {
@@ -35,17 +36,19 @@ function getCmd(menuID) {
 
 		[MMenu.QuestStart]: "mm_quest_start",
 		[MMenu.ATask]: "mm_a_task",
+		[MMenu.GetBalance]: "mm_balance",
 	};
 
 	return MMenuCMD[menuID];
 }
 
-
+var audioLibrary = [];
 
 const izCap = require("../../src/utils/izCap"),
 	izCapData = new izCap("./data/combise", false, _);
 
 izCapData.addLoad(_=> {
+	audioLibrary = izCapData.get("audioLibrary", audioLibrary);
 	var tryGetMS = izCapData.get("memoryStorage", []);
 	memoryStorage = new Map(tryGetMS)
 });
@@ -118,13 +121,30 @@ function menuConstruct(menuID, one, context) {
 			}));
 	}
 	else if(menuID == MMenu.ATask) {
-		menuArr.push(Keyboard.textButton({
-			label: "Не могу выговорить",
-			payload: {
-				// command: getCmd(MMenu.ATask),
-			},
-			color: Keyboard.DEFAULT_COLOR
-		}));
+		if(Quest == QQuest.Record)
+			menuArr.push(Keyboard.textButton({
+				label: "Не могу выговорить",
+				payload: {
+					// command: getCmd(MMenu.ATask),
+				},
+				color: Keyboard.DEFAULT_COLOR
+			}));
+		else if(Quest == QQuest.Listen) {
+			menuArr.push(Keyboard.textButton({
+				label: "Верно",
+				payload: {
+					// command: getCmd(MMenu.ATask),
+				},
+				color: Keyboard.DEFAULT_COLOR
+			}),
+			Keyboard.textButton({
+				label: "Неверно",
+				payload: {
+					// command: getCmd(MMenu.ATask),
+				},
+				color: Keyboard.DEFAULT_COLOR
+			}));
+		}
 	}
 	else if(menuID == MMenu.Main) {
 		menuArr.push(Keyboard.textButton({
@@ -342,16 +362,45 @@ function start(_VK, _Keyboard) {
 
 	// Check Quest
 	.on('message', async (context, next) => {
-		const { session } = context.state;
+		const { session } = context.state,
+			{ peerId, id } = context;
+		var { gameID, player } = session;
 
 		if(context.is("audio_message") /* ||context.hasAttachments("audio_message") */ ) {
 			const attachment = context.getAttachments("audio_message")[0];
+			if(attachment.duration > 60*2)
+				await context.send("Слишком долго...");
 
-			var mid = await context.send({
-				attachment: attachment.toString()
-			});
+			var auNew = audioLibrary.push(new AudioLib({ id, peerId, url: attachment.url }));
 
-			console.log("Send msg id: ", mid);
+			// var mid = await context.send({
+			// 	attachment: `doc${attachment.ownerId}_${attachment.id}`
+			// });
+
+			var mid = await context.send("Отлично. Потом проверим. Сейчас найдем еще...");
+			// console.log(audioLibrary[auNew-1]);
+			console.log("Send text from audio msg id: ", mid);
+
+			var tryGet = audioLibGetRand(peerId)
+			if(tryGet) {
+				session.menuState = MMenu.ATask;
+				session.Quest = QQuest.Listen;
+
+				var tgg = audioLibrary.find(c => c.id == tryGet.id);
+				tgg.setStatus(1);
+				gameID = tgg.peerId;
+
+				await context.sendAudioMessage(tryGet.url, {
+					keyboard: getMenu(context, true)
+				});
+
+				// audioLibRemove(tryGet.id);
+			}
+			else
+				await context.send("Другие голосовухи закончились");
+
+
+			izCapData.set("audioLibrary", audioLibrary);
 
 			// ..
 			return;
@@ -407,26 +456,62 @@ function start(_VK, _Keyboard) {
 		});
 	});
 
+	hearCommand(getCmd(MMenu.GetBalance), [ /(баланс|balance)/i ], async (context) => {
+		const { session } = context.state;
+		
+		await context.send({
+			message: "Balance: "+session.player.balance,
+			keyboard: getMenu(context, true)
+		});
+	});
+
 
 
 	hearCommand(getCmd(MMenu.QuestStart), [ /(помочь|to help)/i ], async (context) => {
 		const { session, command2: cc } = context.state,
 			{ Quest, menuState } = session;
 
-		console.log("QS 2: ", { Quest, menuState });
-
 		var msg = "";
-		if(Quest == QQuest.Start && menuState == getCmd(MMenu.QuestStart)) {
+		if(Quest == QQuest.Start && menuState == MMenu.QuestStart) {
 
 			msg = "Приступим... Запиши голосовое сообщение с текстом: "+getTestText();
 
 			session.Quest = QQuest.Record;
 
-			var mid = await setMenu(context, MMenu.ATask, msg, true);
-			console.log("qt send msg id:", mid );
+			await setMenu(context, MMenu.ATask, msg, true);
 		}
 
 
+	});
+
+	hearCommand("Верно", [ /(верно|true)/i ], async (context) => {
+		const { session, command2: cc } = context.state,
+			{ Quest, menuState } = session;
+
+		var msg = "";
+		if(Quest == QQuest.Listen && menuState == MMenu.ATask) {
+
+			msg = "Запиши голосовое сообщение с текстом: "+getTestText();
+
+			session.Quest = QQuest.Record;
+
+			await setMenu(context, MMenu.ATask, msg, true);
+		}
+	});
+
+	hearCommand("Неверно", [ /(неверно|false)/i ], async (context) => {
+		const { session, command2: cc } = context.state,
+			{ Quest, menuState } = session;
+
+		var msg = "";
+		if(Quest == QQuest.Listen && menuState == MMenu.ATask) {
+
+			msg = "Тогда перезапиши голосове: "+getTestText();
+
+			session.Quest = QQuest.Record;
+
+			await setMenu(context, MMenu.ATask, msg, true);
+		}
 	});
 }
 
@@ -440,14 +525,12 @@ async function fQuest(context, next) {
 	const { session } = context.state,
 		{ Quest, menuState } = session;
 
-	console.log("QS 1: ", { Quest, menuState });
-
 	async function botSay(message) {
 		const prefix = "";
 		await context.send(prefix+message, { keyboard: getMenu(context, true, MMenu.None) });
 	}
 
-	if(Quest = QQuest.FirstStart && menuState == MMenu.None) {
+	if(Quest == QQuest.FirstStart && menuState == MMenu.None) {
 		sWait(context, 20);
 		session.Quest = QQuest.Start;
 
@@ -472,4 +555,35 @@ async function fQuest(context, next) {
 	}
 	else
 		await next();
+}
+
+
+function audioLibGetRand(peerId) {
+	var newArray = [];
+
+	for(var audio of audioLibrary) {
+		if(audio.peerId !== peerId && audio.done==0)
+			newArray.push(audio);
+	}
+	if(newArray.length == 0)
+		return false;
+	return newArray[_.rand(newArray.length-1)];
+}
+function audioLibRemove(id) {
+	return audioLibrary.splice(audioLibrary.findIndex(c => c.id == id), 1);
+}
+
+class AudioLib {
+
+	constructor({ id=0, peerId=0, url=false, done=0 }) {
+		this.id = id;
+		this.peerId = peerId;
+		this.url = url;
+		this.done = done;
+	}
+
+	setStatus(val) {
+		this.done = val;
+	}
+
 }
