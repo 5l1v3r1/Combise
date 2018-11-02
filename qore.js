@@ -95,7 +95,7 @@ function menuConstruct(menuID, one, context) {
 	}
 
 	const { session } = context.state,
-		{ gameID, Quest } = session,
+		{ gameID, player, Quest } = session,
 		{ peerId } = context;
 
 	menuID = menuID || MMenu.Main;
@@ -409,14 +409,11 @@ function start(_VK, _Keyboard) {
 
 
 
-	hearCommand(getCmd(MMenu.QuestStart), [ /(помочь)/i ], async (context) => {
+	hearCommand(getCmd(MMenu.QuestStart), [ /(помочь|to help)/i ], async (context) => {
 		const { session, command2: cc } = context.state,
 			{ Quest, menuState } = session;
 
-		// if(cc === undefined && menuState != getCmd(MMenu.QuestStart)) // Test reset
-		// 	return await setMenu(context, MMenu.FirstStart, "Приступим");
-
-		// Quest.State = cc;
+		console.log("QS: ", { Quest, menuState });
 
 		var msg = "";
 		if(Quest.State == QQuest.Start && menuState == getCmd(MMenu.QuestStart)) {
@@ -450,7 +447,7 @@ async function fQuest(context, next) {
 
 	if(Quest.State = QQuest.FirstStart && menuState == MMenu.None) {
 		sWait(context, 20);
-		Quest.State = QQuest.Start;
+		session.Quest.State = QQuest.Start;
 
 		await botSay("Псс... Человек, помоги мне!");
 		await context.setActivity();
