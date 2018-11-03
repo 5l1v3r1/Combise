@@ -1,12 +1,12 @@
 
 class Player {
 
-	constructor({ peerId, balance=0, cmts=false, currentTask={}, settings=false } = {}) {
+	constructor({ peerId, balance=0, cmts=false, currentTask={}, settings=false, doneJobs=[] } = {}) {
 		this.peerId = peerId;
 
 		this.balance = balance || 0;
 
-		// отгаданные слова
+		this.doneJobs = doneJobs || [];
 		this.currentTask = currentTask || {};
 
 
@@ -22,6 +22,19 @@ class Player {
 			notif: false,
 			cmts: false
 		};
+	}
+
+	saveDoneJob(text) {
+		text = text.toUpperCase();
+		if(!this.isDoneJob(text))
+			this.doneJobs.push(text);
+
+		return this;
+	}
+
+	isDoneJob(text) {
+		text = text.toUpperCase();
+		return (this.doneJobs.indexOf(text) !== -1);
 	}
 
 	// CMTS

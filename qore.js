@@ -68,6 +68,10 @@ izCapData.addLoad(_=> {
 	var tryGetMS = izCapData.get("memoryStorage", []);
 	memoryStorage = new Map(tryGetMS)
 });
+izCapData.setBeforeExitSave(_=> {
+	izCapData.set("memoryStorage", [...memoryStorage]);
+	izCapData.set("audioLibrary", audioLibrary);
+});
 
 const Player = require("./Player");
 
@@ -135,20 +139,22 @@ function menuConstruct(menuID, one, context) {
 				color: Keyboard.DEFAULT_COLOR
 			}));
 		else if(Quest == QQuest.Listen) {
-			menuArr.push(Keyboard.textButton({
-				label: "Верно",
-				payload: {
-					// command: cmdMenu(MMenu.ATask),
-				},
-				color: Keyboard.DEFAULT_COLOR
-			}),
-			Keyboard.textButton({
-				label: "Неверно",
-				payload: {
-					// command: cmdMenu(MMenu.ATask),
-				},
-				color: Keyboard.DEFAULT_COLOR
-			}));
+			menuArr.push([
+				Keyboard.textButton({
+					label: "Верно",
+					payload: {
+						command: cmdMenu(MMenu.QuestATrue),
+					},
+					color: Keyboard.DEFAULT_COLOR
+				}),
+				Keyboard.textButton({
+					label: "Неверно",
+					payload: {
+						command: cmdMenu(MMenu.QuestAFalse),
+					},
+					color: Keyboard.DEFAULT_COLOR
+				})
+			]);
 		}
 	}
 	else if(menuID == cmdMenu(MMenu.QuestMore)) {
@@ -207,7 +213,7 @@ function menuConstruct(menuID, one, context) {
 		}));
 	}
 
-	if([ cmdMenu(MMenu.ATask), cmdMenu(MMenu.QuestMore), cmdMenu(MMenu.MainMenu) ].includes(menuID)) {
+	if([ cmdMenu(MMenu.ATask), cmdMenu(MMenu.QuestMore), cmdMenu(MMenu.MainMenu) ].includes(menuID) && Quest != QQuest.Listen) {
 		menuArr.push(Keyboard.textButton({
 			label: 'Баланс',
 			payload: {
@@ -413,8 +419,8 @@ function start(_VK, _Keyboard) {
 			// session.menuState = cmdMenu(MMenu.ATask);
 			session.Quest = QQuest.Listen;
 
-			gAudio.setStatus(AudioLib.Status.Wait);
-			aTask = { id: gAudio.id, peerId: gAudio.peerId, text: gAudio.text };
+			gAudio.status = AudioLib.Status.Wait;
+			session.aTask = { id: gAudio.id, peerId: gAudio.peerId, text: gAudio.text };
 
 			// await context.send(gAudio.text? ("Здесь произнесен такой текст: \""+ gAudio.text +"\"?"): "Здесь явно что-то сказано...");
 			await setMenu(context, MMenu.ATask, gAudio.text? ("Здесь произнесен такой текст: \""+ gAudio.text +"\"?"): "Здесь явно что-то сказано...");
@@ -499,16 +505,19 @@ function start(_VK, _Keyboard) {
 
 	hearCMenu(MMenu.QuestStart, async (context) => {
 		const { session, command2: cc } = context.state,
-			{ Quest, menuState } = session;
+			{ Quest, menuState, player } = session;
 
 		var msg = "";
 		if(Quest == QQuest.Start && menuState == cmdMenu(MMenu.QuestStart)) {
 
-			var text = getTestText(),
-				msg = "Приступим...\nЗапиши голосовое сообщение с текстом: "+text;
+			var text = getSafeRandomText(player.doneJobs),
+				msg = "Приступим...\nЗапиши голосовое сообщение с текстом: \""+text+"\"";
+
+			if(!text) {
+				return await setMenu(context, MMenu.MainMenu, "Нет доступных заданий", true);
+			}
 
 			session.aTask = { text };
-
 			session.Quest = QQuest.Record;
 
 			await setMenu(context, MMenu.ATask, msg, true);
@@ -521,13 +530,15 @@ function start(_VK, _Keyboard) {
 
 		if(Quest == QQuest.None && menuState == cmdMenu(MMenu.QuestMore)) {
 
-			var text = getTestText(),
-				msg = "Приступим...\nЗапиши голосовое сообщение с текстом: "+text;
+			var text = getSafeRandomText(player.doneJobs),
+				msg = text? "Приступим...\nЗапиши голосовое сообщение с текстом: \""+text+"\"": "";
+
+			if(!text) {
+				return await setMenu(context, MMenu.MainMenu, "Нет доступных заданий", true);
+			}
 
 			session.aTask = { text };
-
 			session.Quest = QQuest.Record;
-
 			await setMenu(context, MMenu.ATask, msg, true);
 		}
 		else {
@@ -548,7 +559,7 @@ function start(_VK, _Keyboard) {
 			var gAudio = audioLibrary.find(au=> au.peerId == aTask.peerId && au.id==aTask.id);
 			if(!gAudio) {
 				// Такое голосовое не найдено
-				console.log("This voiceMessage is not found. Params: ", aTask)
+				console.log("This voiceMessage is not found. Params: ", aTask);
 			}
 			else if(gAudio.status == AudioLib.Status.Wait) {
 
@@ -565,6 +576,7 @@ function start(_VK, _Keyboard) {
 			}
 			else {
 				// Уже проверенно
+				console.log("Already checked ", aTask);
 			}
 		}
 	});
@@ -581,7 +593,7 @@ function start(_VK, _Keyboard) {
 			var gAudio = audioLibrary.find(au=> au.peerId == aTask.peerId && au.id==aTask.id);
 			if(!gAudio) {
 				// Такое голосовое не найдено
-				console.log("This voiceMessage is not found. Params: ", aTask)
+				console.log("This voiceMessage is not found. Params: ", aTask);
 			}
 			else if(gAudio.status == AudioLib.Status.Wait) {
 				session.aTask = { id: 0 };
@@ -592,23 +604,52 @@ function start(_VK, _Keyboard) {
 				session.Quest = QQuest.None;
 				await setMenu(context, MMenu.QuestMore, msg, true);
 
-				// msg = "Тогда перезапиши голосове: "+getTestText();
+				// msg = "Тогда перезапиши голосове: \""+text+"\"";
 				// session.Quest = QQuest.Record;
 				// await setMenu(context, MMenu.ATask, msg, true);
 			}
 			else {
 				// Уже проверенно
+				console.log("Already checked ", aTask);
 			}
 		}
 	});
 }
 
+function getSafeRandomText(compareArray) {
+	var newArray = [];
+	var texts = getTestText();
 
+	for(var text of texts) {
+		if(compareArray && !compareArray.includes(text.toUpperCase()))
+			newArray.push(text);
+	}
+
+	if(newArray.length == 0)
+		return false;
+	return newArray[_.rand(newArray.length-1)];
+}
 function getTestText() {
 	const texts = [
-		"Проверка голосового восприятия"
+		"Проверка голосового восприятия",
+		"Действие от первого лица",
+		"Развернутый сюжет",
+		"Это все может повториться",
+		"Ничто не однозначно",
+		"Какой от этого толк",
+		"Кто бы знал, зачем он это делает",
+		"Сколько же можно было бы вместо этого поделать что-то другое",
+		"Это могло начать нравиться",
+		"Заманивает сначала, а потом и понять не можешь",
+		"Откуда это здесь взялось",
+		"Экологический продукт",
+		"Квора на комбайсе",
+		"Комбайсим по полной",
+		"Это не может длиться вечно",
+		"Всему есть свой предел",
+		"Который час мог бы тебе пригодиться"
 	];
-	return texts[_.rand(texts.length-1)];
+	return texts;//[_.rand(texts.length-1)];
 }
 
 async function fQuest(context, next) {
