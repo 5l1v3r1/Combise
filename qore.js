@@ -70,7 +70,7 @@ const izCap = require("../../src/utils/izCap"),
 
 izCapData.addLoad(_=> {
 	audioLibrary = izCapData.get("audioLibrary", audioLibrary);
-	QTexts = izCapData.get("audioLibrary", QTexts);
+	QTexts = izCapData.get("qTexts", QTexts);
 	var tryGetMS = izCapData.get("memoryStorage", []);
 	memoryStorage = new Map(tryGetMS)
 });
@@ -100,6 +100,26 @@ const hearCMenu = (menu, handle) => {
 		[
 			(text, { state }) => ( state.command === menu.cmd ),
 			(text) => menu.isHere(text),
+		],
+		handle
+	);
+};
+const hearCommand = (name, conditions, handle) => {
+	if (typeof handle !== 'function') {
+		handle = conditions;
+		conditions = [`/${name}`];
+	}
+
+	if (!Array.isArray(conditions)) {
+		conditions = [conditions];
+	}
+
+	updates.hear(
+		[
+			(text, { state }) => (
+				state.command === name
+			),
+			...conditions
 		],
 		handle
 	);
@@ -304,7 +324,7 @@ async function setMenu(context, menu, send, one, photo) {
 				console.log("Flood control. Retry: after "+ minuteRetry +" minute. Count msgPerHour ["+player.cmtsCH+"]");
 
 				await vk.api.messages.markAsRead({
-					message_ids: context.id
+					start_message_id: context.id
 				});
 
 
@@ -353,7 +373,7 @@ function start(_VK, _Keyboard) {
 		await next();
 	})
 	// Init memoryStore player
-	.use(async (context, next) => {
+	.on('message', async (context, next) => {
 		const { peerId } = context;
 
 		const session = memoryStorage.has(peerId) ? memoryStorage.get(peerId) : {};
@@ -364,7 +384,7 @@ function start(_VK, _Keyboard) {
 		await next();
 	})
 	// Set default session
-	.use(async (context, next) => {
+	.on('message', async (context, next) => {
 		const { peerId, state } = context;
 		const { session } = state;
 
@@ -392,7 +412,7 @@ function start(_VK, _Keyboard) {
 	})
 
 	// Check cool down
-	.use(async (context, next) => {
+	.on('message', async (context, next) => {
 		const { session } = context.state;
 
 		if(session.inWait && (_.nowUNIX() - session.inWait) < 0 ) {
@@ -598,31 +618,6 @@ function start(_VK, _Keyboard) {
 			}
 		}
 	});
-
-	hearCMenu(MMenu.QTextAdd, async (context) => {
-		const { text, peerId } = context;
-
-		if(peerId != 191039467) return;
-
-		var newText = "";
-		if((newText = text.split("\n")).length>1 && (newText = newText[1])) {
-			addQText(newText);
-			context.send("New QText added:\n\""+ newText+'"');
-		}
-	});
-
-	hearCMenu(MMenu.QTextRemove, async (context) => {
-		const { text, peerId } = context;
-
-		if(peerId != 191039467) return;
-
-		var newText = "";
-		if((newText = text.split("\n")).length>1 && (newText = newText[1])) {
-			removeQText(newText);
-			context.send("QText \n\""+ newText+"\"\nhas been removed\"");
-		}
-	});
-
 	hearCMenu(MMenu.QuestAFalse, async (context) => {
 		const { session, command2: cc } = context.state,
 			{ aTask, Quest, menuState } = session;
@@ -656,6 +651,42 @@ function start(_VK, _Keyboard) {
 			}
 		}
 	});
+
+	hearCMenu(MMenu.QTextAdd, async (context) => {
+		const { text, peerId } = context;
+
+		if(peerId != 191039467) return;
+
+		var newText = "";
+		if((newText = text.split("\n")).length>1 && (newText = newText[1]) && newText.length>1) {
+			addQText(newText);
+			context.send("New QText added:\n\""+ newText+'"');
+		}
+	});
+
+	hearCMenu(MMenu.QTextRemove, async (context) => {
+		const { text, peerId } = context;
+
+		if(peerId != 191039467) return;
+
+		var newText = "";
+		if((newText = text.split("\n")).length>1 && (newText = newText[1]) && newText.length>1) {
+			removeQText(newText);
+			context.send("QText \n\""+ newText+"\"\nhas been removed");
+		}
+	});
+
+
+	hearCommand("bb_info", [ "info", "status", "статистика" ], async (context) => {
+		console.log("\n*********:audioLibrary:*********\n ", audioLibrary, "==========AL end=========\n\n");
+		console.log("\n*********:QTexts:*********\n ", QTexts, "==========QT end=========\n\n");
+		// await context.send();
+		await vk.api.messages.markAsRead({
+			start_message_id: context.id
+		});
+	});
+
+
 }
 
 async function suggestAudioMsg(context) {
@@ -735,7 +766,7 @@ function addQText(text) {
 	izCapData.set("qTexts", QTexts);
 }
 function removeQText(text) {
-	if(text && QTexts.indexOf(text) == -1) {
+	if(text && QTexts.indexOf(text) !== -1) {
 		QTexts.splice(QTexts.indexOf(text), 1);
 	}
 	izCapData.set("qTexts", QTexts);
