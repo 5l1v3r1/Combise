@@ -130,7 +130,7 @@ function menuConstruct(menuID, one, context) {
 			}));
 	}
 	else if(menuID == cmdMenu(MMenu.ATask)) {
-		if(Quest == QQuest.Record)
+		/* if(Quest == QQuest.Record)
 			menuArr.push(Keyboard.textButton({
 				label: "Не могу выговорить",
 				payload: {
@@ -138,7 +138,7 @@ function menuConstruct(menuID, one, context) {
 				},
 				color: Keyboard.DEFAULT_COLOR
 			}));
-		else if(Quest == QQuest.Listen) {
+		else  */if(Quest == QQuest.Listen) {
 			menuArr.push([
 				Keyboard.textButton({
 					label: "Верно",
@@ -254,7 +254,7 @@ async function setMenu(context, menu, send, one, photo) {
 
 	// Как же ВК считает эти кулдауны для сообществ? 🤔
 	// Удалить смс старше 12 минут
-	player.cmtsCalc(60*12);
+	// player.cmtsCalc(60*12);
 
 	var dbgMsg = "";
 
@@ -281,7 +281,7 @@ async function setMenu(context, menu, send, one, photo) {
 
 			var mid = await context[photo? "sendPhoto": "send"](photo? photo: pld, photo? pld: void 0);
 
-			player.cmtsAdd(mid);
+			// player.cmtsAdd(mid);
 
 		} catch(e) {
 			_.con("ID"+context.peerId + " Error:", true);
@@ -406,6 +406,7 @@ function start(_VK, _Keyboard) {
 
 		var text = aTask.text || false,
 			auNew = audioLibrary.push(new AudioLib({ id, peerId, url: attachment.url, text }));
+		player.saveDoneJob(text);
 
 		setMenu(context, MMenu.Close, "Отлично. Потом проверим. Сейчас найдем еще...");
 		// var mid = await context.send("Отлично. Потом проверим. Сейчас найдем еще...");
@@ -413,17 +414,18 @@ function start(_VK, _Keyboard) {
 
 		sWait(context, 10);
 
+		// Отправка на проверку другого аудио сообщения
 		var gAudio = audioLibrary.find(au=> au.peerId != peerId && au.status==AudioLib.Status.New);
-
 		if(gAudio) {
-			// session.menuState = cmdMenu(MMenu.ATask);
 			session.Quest = QQuest.Listen;
 
 			gAudio.status = AudioLib.Status.Wait;
 			session.aTask = { id: gAudio.id, peerId: gAudio.peerId, text: gAudio.text };
 
 			// await context.send(gAudio.text? ("Здесь произнесен такой текст: \""+ gAudio.text +"\"?"): "Здесь явно что-то сказано...");
-			await setMenu(context, MMenu.ATask, gAudio.text? ("Здесь произнесен такой текст: \""+ gAudio.text +"\"?"): "Здесь явно что-то сказано...");
+			await setMenu(context, MMenu.Close, gAudio.text? ("Здесь произнесен такой текст: \""+ gAudio.text +"\"?"): "Здесь явно что-то сказано...");
+
+			session.menuState = cmdMenu(MMenu.ATask);
 			await context.sendAudioMessage(gAudio.url, {
 				keyboard: getMenu(context, true)
 			});
@@ -526,7 +528,7 @@ function start(_VK, _Keyboard) {
 
 	hearCMenu(MMenu.QuestMore, async (context) => {
 		const { session } = context.state,
-			{ Quest, menuState } = session;
+			{ player, Quest, menuState } = session;
 
 		if(Quest == QQuest.None && menuState == cmdMenu(MMenu.QuestMore)) {
 
@@ -563,7 +565,7 @@ function start(_VK, _Keyboard) {
 			}
 			else if(gAudio.status == AudioLib.Status.Wait) {
 
-				gAudio.setStatus(AudioLib.Status.Done);
+				gAudio.status = AudioLib.Status.Done;
 
 				addPlayerBalance(aTask.peerId, 1);
 
@@ -598,7 +600,7 @@ function start(_VK, _Keyboard) {
 			else if(gAudio.status == AudioLib.Status.Wait) {
 				session.aTask = { id: 0 };
 
-				gAudio.setStatus(AudioLib.Status.False);
+				gAudio.status = AudioLib.Status.False;
 
 				msg = "Жаль.\nЕсли готов еще, то жми \"Еще!\"";
 				session.Quest = QQuest.None;
