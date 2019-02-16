@@ -42,20 +42,18 @@ updates.use(async (context, next) => {
 });
 
 // Set online status
-(async function ggw() {
-	const { status } = await vk.api.groups.getOnlineStatus({
-		group_id: groupID
-	});
+setInterval(async ()=> {
+	try {
+		const { status } = await vk.api.groups.getOnlineStatus({ group_id: groupID });
 
-	if(status == "none")
-		await vk.api.groups.enableOnline({
-			group_id: groupID
-		});
-})();
+		if(status == "none")
+			await vk.api.groups.enableOnline({ group_id: groupID });
+	} catch(e) { }
+}, 6e4);
 
 const q = require("./qore");
 module.exports.q = q;
-q(vk, Keyboard);
+q(vk, Keyboard, xbot.name);
 
 async function run() {
 	await vk.updates.startPolling();
