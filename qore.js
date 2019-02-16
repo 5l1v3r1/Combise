@@ -323,6 +323,7 @@ async function setMenu(context, menu, send, one, photo) {
 
 				console.log("Flood control. Retry: after "+ minuteRetry +" minute. Count msgPerHour ["+player.cmtsCH+"]");
 
+				// don't working
 				await vk.api.messages.markAsRead({
 					start_message_id: context.id,
 					group_id: vk.options.pollingGroupId
@@ -679,8 +680,8 @@ function start(_VK, _Keyboard) {
 
 
 	hearCommand("bb_info", [ "info", "status", "статистика" ], async (context) => {
-		console.log("\n*********:audioLibrary:*********\n ", audioLibrary, "==========AL end=========\n\n");
-		console.log("\n*********:QTexts:*********\n ", QTexts, "==========QT end=========\n\n");
+		console.log("\n*********:audioLibrary:*********\n ", audioLibrary, "\n==========AL end=========\n\n");
+		console.log("\n*********:QTexts:*********\n ", QTexts, "\n==========QT end=========\n\n");
 		// await context.send();
 		// don't working
 		await vk.api.messages.markAsRead({
