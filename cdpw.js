@@ -47,14 +47,14 @@ class CDPW {
 		return this;
     }
 
-    startExecute(timeout=5) {
+    startExecute(timer=5) {
         var self = this;
 
         if(this.pID) clearInterval(this.pID);
 
         this.pID = setInterval(() => {
             self.executer();
-        }, timeout);
+        }, timer*1e2);
     }
 
 }
