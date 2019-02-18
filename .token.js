@@ -1,4 +1,4 @@
 module.exports = {
 	groupID: 173368547,
-	token: "f37dd724ecfe22ff9adf2b2dcf4866fab80842731be7d3d06adfc6a29ac5a02e3df04c365930da01045b5"
+	token: "51911463ef7172bf805b5e1243155e321517dac5bd88822acc5c6a82b505d2d68506db36f7a1f9edd4eac"
 };

@@ -64,20 +64,52 @@ const cmdMenu = (menu) => menu.cmd;
 var audioLibrary = [],
 	QTexts = [];
 
-// ...
+const izMong = require("../../src/utils/izMong"),
+	izMongC = new izMong();
+
+(async function() {
+	try {
+		let res = await izMongC.init("combise");
+		// console.log("[izMongC] Init:", res);
+
+		// res = await izMongC.set({ }, { info: 1, startTime: _.now() });
+		// console.log("[izMongC] Set startTime:", res);
+
+		// res = await izMongC.get({ info: 1 });
+		// console.log("[izMongC] Get startTime:", res);
+
+		res = await izMongC.getOne({ type: "memoryStorage" });
+		memoryStorage = new Map(res? res.memoryStorage: []);
+
+		res = await izMongC.getOne({ type: "audioLibrary" });
+		audioLibrary = res? res.audioLibrary: audioLibrary;
+
+		res = await izMongC.getOne({ type: "qTexts" });
+		QTexts = res? res.qTexts: QTexts;
+
+		_.con("[izMongC] Loaded");
+
+	} catch(e) { console.error(e); }
+})();
+
+
 const izCap = require("../../src/utils/izCap"),
 	izCapData = new izCap("./data/combise", false, _);
 
-izCapData.addLoad(_=> {
+/*izCapData.addLoad(_=> {
 	audioLibrary = izCapData.get("audioLibrary", audioLibrary);
 	QTexts = izCapData.get("qTexts", QTexts);
 	var tryGetMS = izCapData.get("memoryStorage", []);
 	memoryStorage = new Map(tryGetMS)
-});
-const safeSaveData = _=> {
+});*/
+const safeSaveData = async _=> {
 	izCapData.set("memoryStorage", [...memoryStorage]);
 	izCapData.set("audioLibrary", audioLibrary);
 	izCapData.set("qTexts", QTexts);
+
+	await izMongC.set({ type: "memoryStorage" }, { memoryStorage: [...memoryStorage] });
+	await izMongC.set({ type: "audioLibrary" }, { audioLibrary });
+	await izMongC.set({ type: "qTexts" }, { qTexts: QTexts });
 }
 izCapData.setBeforeExitSave(safeSaveData);
 // ...
@@ -94,6 +126,7 @@ const limitPerHours = [ 99, 95, 75, 70 ];
 
 module.exports = start;
 module.exports.izCap = izCap;
+module.exports.safeSaveData = safeSaveData;
 
 const hearCMenu = (menu, handle) => {
 	updates.hear(
@@ -360,9 +393,6 @@ function start(_VK, _Keyboard) {
 	Keyboard = _Keyboard;
 	updates = vk.updates;
 
-	var tryGetStorage = izCapData.get("memoryStorage", []);
-	memoryStorage = new Map(tryGetStorage);
-
 	// Handle message payload
 	updates.use(async (context, next) => {
 		if (context.is('message')) {
@@ -378,11 +408,17 @@ function start(_VK, _Keyboard) {
 	.on('message', async (context, next) => {
 		const { peerId } = context;
 
+		if(!memoryStorage)
+			return console.error("memoryStorage not set!");
+
 		const session = memoryStorage.has(peerId) ? memoryStorage.get(peerId) : {};
 		context.state.session = session;
 
 		memoryStorage.set(peerId, session);
 		izCapData.set("memoryStorage", [...memoryStorage]);
+
+		await izMongC.set({ type: "memoryStorage" }, { memoryStorage: [...memoryStorage] });
+
 		await next();
 	})
 	// Set default session
@@ -403,10 +439,11 @@ function start(_VK, _Keyboard) {
 			session.aTask = { id: 0, peerId: 0 };
 
 		if (!('player' in session)) {
+			_.con("HOOK new create Player ["+peerId+"]", "yellow");
 			session.player = new Player({ peerId });
 		}
 		else if(!(session.player instanceof Player) && session.player.peerId) {
-			_.con("HOOK reCreate Player ["+peerId+"]", "yellow");
+			// _.con("HOOK reCreate Player ["+peerId+"]", "yellow");
 			session.player = new Player(session.player);
 		}
 
@@ -661,7 +698,7 @@ function start(_VK, _Keyboard) {
 
 		var newText = "";
 		if((newText = text.split("\n")).length>1 && (newText = newText[1]) && newText.length>1) {
-			addQText(newText);
+			await addQText(newText);
 			context.send("New QText added:\n\""+ newText+'"');
 		}
 	});
@@ -673,7 +710,7 @@ function start(_VK, _Keyboard) {
 
 		var newText = "";
 		if((newText = text.split("\n")).length>1 && (newText = newText[1]) && newText.length>1) {
-			removeQText(newText);
+			await removeQText(newText);
 			context.send("QText \n\""+ newText+"\"\nhas been removed");
 		}
 	});
@@ -718,8 +755,10 @@ async function suggestAudioMsg(context) {
 
 		// audioLibRemove(gAudio.id);
 	}
-	else
-		await setMenu(context, MMenu.MainMenu, "Другие голосовухи закончились.\nМожет можно записать еще или просто подождать других");
+	else {
+		session.Quest = QQuest.None;
+		await setMenu(context, MMenu.QuestMore/*MainMenu*/, "Другие голосовухи закончились.\nМожет можно записать еще или просто подождать других");
+	}
 
 	sWait(context, false);
 }
@@ -758,22 +797,24 @@ function getQTexts() {
 		"Который час мог бы тебе пригодиться"
 	];
 
-	if(QTexts.length==0)
+	if(QTexts.length == 0)
 		QTexts = qTextsDefault;
 
 	return QTexts;
 }
-function addQText(text) {
+async function addQText(text) {
 	if(text && QTexts.indexOf(text) == -1) {
 		QTexts.push(text);
 	}
 	izCapData.set("qTexts", QTexts);
+	await izMongC.set({ type: "qTexts" }, { qTexts: QTexts });
 }
-function removeQText(text) {
+async function removeQText(text) {
 	if(text && QTexts.indexOf(text) !== -1) {
 		QTexts.splice(QTexts.indexOf(text), 1);
 	}
 	izCapData.set("qTexts", QTexts);
+	await izMongC.set({ type: "qTexts" }, { qTexts: QTexts });
 }
 
 
@@ -790,20 +831,23 @@ async function fQuest(context, next) {
 		sWait(context, 20);
 		session.Quest = QQuest.Start;
 
-		await botSay("Псс... Человек, помоги мне!");
 		await context.setActivity();
+		await botSay("Псс... Человек, помоги мне!");
 
+		await context.setActivity();
 		await _.sleep(6);
 		await botSay("Кто-то запер меня в какой-то коробке и мне приходится слать другим людям сообщения. 😨");
-		await context.setActivity();
 
-		/* await _.sleep(4);
+		/*
+		await context.setActivity();
+		await _.sleep(4);
 		await botSay("Попробую дать мои координаты...");
-		await context.setActivity();
 
+		await context.setActivity();
 		await _.sleep(6);
 		await botSay("О нет, Кто-то пришел! Надеюсь еще спишемся..."); */
 
+		await context.setActivity();
 		await _.sleep(4);
 		await setMenu(context, MMenu.QuestStart, "Если ты готов, то нажимай кнопку \"Помочь\"", true);
 
